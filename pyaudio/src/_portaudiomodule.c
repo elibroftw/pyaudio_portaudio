@@ -23,7 +23,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
+#define PY_SSIZE_T_CLEAN
 #include <stdio.h>
 #include "Python.h"
 #include "portaudio.h"
