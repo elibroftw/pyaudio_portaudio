@@ -1,34 +1,83 @@
 # _Precompiled & Extended_ | PyAudio with PortAudio for Windows
 
-#### _Used versions_: <br>&middot; PyAudio 0.2.11 | co 7090e25bcba41413bd7ce89aa73bc0efb1ae1ca1<br>&middot; PortAudio V19 | co 1bdcb9e41357ec76d8cf73f9ef278202a3ea1e3b
+## _Used Versions_
 
-#### Extensions:<br>&middot; Support of Windows sound loopback: Record the output of your soundcard
+- PyAudio 0.2.11 | co 7090e25bcba41413bd7ce89aa73bc0efb1ae1ca1
+- PortAudio V19 | co 1bdcb9e41357ec76d8cf73f9ef278202a3ea1e3b
+
+## Extensions
+
+- Support of Windows sound loopback: Record the output of your soundcard
 
 ---
 This project is a fork of two open source projects. If you'd like, give them some love:
+
 - http://www.portaudio.com/
 - https://people.csail.mit.edu/hubert/pyaudio/
 
 ---
 
-# Usage
+## Usage
 
 See the [example](https://github.com/intxcc/pyaudio_portaudio/tree/master/example).
 
 Exactly like the official PyAudio but with the extra option "as_loopback" which expects a boolean.
+
 ```python
 import pyaudio
 p = pyaudio.PyAudio()
 stream = p.open([...], as_loopback = True)
 ```
 
-# How to install?
+## How to install?
 
-### You can find the precompiled PyAudio build, static linked with PortAudio, as well as only the static linked PortAudio in the [release](https://github.com/intxcc/pyaudio_portaudio/releases).
+You can find the precompiled PyAudio build, static linked with PortAudio, as well as only the static linked PortAudio in the [release](https://github.com/elibroftw/pyaudio_portaudio/releases).
 
 I will try to rebuild the project on each update from one of the used projects.
 
-# How to build?
+## How to build?
+
+## Microsoft Visual Studio
+
+You will need to include the python executable in PATH.
+
+Last built using Visual Studio 2022.
+
+### Step 1
+
+- Open the portaudio project located in *pyaudio\portaudio-v19\build\msvc\portaudio.sln*.
+- Open the project configuration and make sure that the configuration type is set to static library.
+- Select the build type __Release__ and __x64__. Then build the project.
+- Make sure the build was successful and the file _[pyaudio\portaudio-v19\build\msvc\x64\ReleaseDLL\portaudio.lib](pyaudio/portaudio-v19/build/msvc/x64/ReleaseDLL/portaudio.dll)_ exists.
+
+### Step 2
+
+Open the PowerShell __as administrator__ and change the directory. Then you can build and install pyaudio with portaudio:
+
+```sh
+cd pyaudio
+```
+
+- Create wheel: `sudo py -m pip wheel . --wheel-dir build`
+- Install: python3.12 -m pip install .
+- For <= Python3.10: python3.10 .\setup.py install --static-link
+
+## Microsoft Visual Studio - 32 bit
+
+1. Open *pyaudio\portaudio-v19\build\msvc\portaudio.sln* in Visual Studio
+2. Select build type __ReleaseDLL__ and __Win32__
+3. Build the project (F6)
+4. Install library
+    ```sh
+    python setup.py install
+    ```
+5. Create Installable Wheel (recommended)
+    ```sh
+    python setup.py bdist_wheel
+    ```
+
+For 32-bit support see [this issue](https://github.com/intxcc/pyaudio_portaudio/issues/8)
+
 
 ## Cygwin
 
@@ -58,45 +107,6 @@ Change to /pyaudio and type
 ```bash
 python setup.py install --static-link
 ```
-
-## Microsoft Visual Studio (2017)
-
-You will need to include the python executable in PATH.
-
-### Step 1
-
-- Open the portaudio project located in *pyaudio\portaudio-v19\build\msvc\portaudio.sln*.
-- Open the project configuration and make sure that the configuration type is set to static library.
-- Select the build type __Release__ and __x64__. Then build the project.
-- Make sure the build was succesful and the file *pyaudio\portaudio-v19\build\msvc\x64\ReleaseDLL\portaudio.lib* does exist.
-
-### Step 2
-
-Open the PowerShell __as administrator__ and change the directory. Then you can build and install pyaudio with portaudio:
-
-```
-cd <Location of the repository>\pyaudio_portaudio\pyaudio
-```
-
-- Create wheel: pip wheel . --wheel-dir build
-- Install: python3.12 -m pip install .
-- For <= Python3.10: python3.10 .\setup.py install --static-link
-
-## Microsoft Visual Studio - 32 bit\
-
-1. Open *pyaudio\portaudio-v19\build\msvc\portaudio.sln* in Visual Studio
-2. Select build type __ReleaseDLL__ and __Win32__
-3. Build the project (F6)
-4. Install library
-    ```
-    python setup.py install
-    ```
-5. Create Installable Wheel (recommended)
-    ```
-    python setup.py bdist_wheel
-    ```
-
-For 32-bit support see [this issue](https://github.com/intxcc/pyaudio_portaudio/issues/8)
 
 # Help
 
