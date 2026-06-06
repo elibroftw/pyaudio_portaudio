@@ -1,0 +1,41 @@
+name: Build Windows Wheels
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.arch == 'ARM64' && 'windows-11-arm' || 'windows-latest' }}
+    strategy:
+      matrix:
+        arch: ['x64', 'ARM64']
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        exclude:
+          - arch: 'ARM64'
+            python-version: '3.10'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@main
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: ${{ matrix.arch == 'ARM64' && 'arm64' || 'x64' }}
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@main
+
+      - name: Build PortAudio
+        working-directory: pyaudio/portaudio-v19/build/msvc
+        run: msbuild portaudio.sln /p:Configuration=Release /p:Platform=${{ matrix.arch }} /m
+
+      - name: Build wheel
+        working-directory: pyaudio
+        run: py -m pip wheel . --wheel-dir build
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@main
+        with:
+          name: wheels-${{ matrix.arch == 'x64' && 'amd64' || 'arm64' }}-py${{ matrix.python-version }}
+          path: pyaudio/build/*.whl
