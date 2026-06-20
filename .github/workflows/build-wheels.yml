@@ -5,14 +5,15 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.arch == 'ARM64' && 'windows-11-arm' || 'windows-latest' }}
+    # https://github.com/actions/runner-images/issues/14225
+    runs-on: ${{ matrix.arch == 'ARM64' && 'windows-11-vs2026-arm' || 'windows-latest' }}
     strategy:
       matrix:
         arch: ['x64', 'ARM64']
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
         exclude:
-          - arch: 'ARM64'
-            python-version: '3.10'
+          - arch: ARM64
+            python-version: 3.10
     steps:
       - name: Checkout code
         uses: actions/checkout@main
@@ -28,7 +29,7 @@ jobs:
 
       - name: Build PortAudio
         working-directory: pyaudio/portaudio-v19/build/msvc
-        run: msbuild portaudio.sln /p:Configuration=Release /p:Platform=${{ matrix.arch }} /m
+        run: msbuild portaudio.sln /p:Configuration=ReleaseDLL /p:Platform=${{ matrix.arch }} /m
 
       - name: Build wheel
         working-directory: pyaudio
@@ -37,5 +38,5 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@main
         with:
-          name: wheels-${{ matrix.arch == 'x64' && 'amd64' || 'arm64' }}-py${{ matrix.python-version }}
+          name: wheels-${{ matrix.arch }}-py${{ matrix.python-version }}
           path: pyaudio/build/*.whl
