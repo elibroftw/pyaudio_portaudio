@@ -26,14 +26,18 @@
 
 #include <assert.h>
 #include <stdio.h>
+
+#ifndef PY_SSIZE_T_CLEAN
 #define PY_SSIZE_T_CLEAN
+#endif
 #include "Python.h"
-#include "portaudio.h"
+
+#include "device_api.h"
+#include "host_api.h"
+#include "mac_core_stream_info.h"
 #include "_portaudiomodule.h"
 
-#ifdef MACOSX
-#include "pa_mac_core.h"
-#endif
+#include "portaudio.h"
 
 #define DEFAULT_FRAMES_PER_BUFFER paFramesPerBufferUnspecified
 /* #define VERBOSE */
@@ -145,596 +149,6 @@ static PyMethodDef paMethods[] = {
  * II. Python Object Wrappers
  *
  ************************************************************/
-
-/*************************************************************
- * PaDeviceInfo Type : Python object wrapper for PaDeviceInfo
- *************************************************************/
-
-typedef struct {
-  // clang-format off
-  PyObject_HEAD
-  PaDeviceInfo *devInfo;
-  // clang-format on
-} _pyAudio_paDeviceInfo;
-
-static PyObject *_pyAudio_paDeviceInfo_get_structVersion(
-    _pyAudio_paDeviceInfo *self, void *closure) {
-  if (!self->devInfo) {
-    PyErr_SetString(PyExc_AttributeError, "No Device Info available");
-    return NULL;
-  }
-
-  return PyLong_FromLong(self->devInfo->structVersion);
-}
-
-static PyObject *_pyAudio_paDeviceInfo_get_name(_pyAudio_paDeviceInfo *self,
-                                                void *closure) {
-  if ((!self->devInfo) || (self->devInfo->name == NULL)) {
-    PyErr_SetString(PyExc_AttributeError, "No Device Info available");
-    return NULL;
-  }
-
-  return PyBytes_FromString(self->devInfo->name);
-}
-
-static PyObject *_pyAudio_paDeviceInfo_get_hostApi(_pyAudio_paDeviceInfo *self,
-                                                   void *closure) {
-  if (!self->devInfo) {
-    PyErr_SetString(PyExc_AttributeError, "No Device Info available");
-    return NULL;
-  }
-
-  return PyLong_FromLong(self->devInfo->hostApi);
-}
-
-static PyObject *_pyAudio_paDeviceInfo_get_maxInputChannels(
-    _pyAudio_paDeviceInfo *self, void *closure) {
-  if (!self->devInfo) {
-    PyErr_SetString(PyExc_AttributeError, "No Device Info available");
-    return NULL;
-  }
-
-  return PyLong_FromLong(self->devInfo->maxInputChannels);
-}
-
-static PyObject *_pyAudio_paDeviceInfo_get_maxOutputChannels(
-    _pyAudio_paDeviceInfo *self, void *closure) {
-  if (!self->devInfo) {
-    PyErr_SetString(PyExc_AttributeError, "No Device Info available");
-    return NULL;
-  }
-
-  return PyLong_FromLong(self->devInfo->maxOutputChannels);
-}
-
-static PyObject *_pyAudio_paDeviceInfo_get_defaultLowInputLatency(
-    _pyAudio_paDeviceInfo *self, void *closure) {
-  if (!self->devInfo) {
-    PyErr_SetString(PyExc_AttributeError, "No Device Info available");
-    return NULL;
-  }
-
-  return PyFloat_FromDouble(self->devInfo->defaultLowInputLatency);
-}
-
-static PyObject *_pyAudio_paDeviceInfo_get_defaultLowOutputLatency(
-    _pyAudio_paDeviceInfo *self, void *closure) {
-  if (!self->devInfo) {
-    PyErr_SetString(PyExc_AttributeError, "No Device Info available");
-    return NULL;
-  }
-
-  return PyFloat_FromDouble(self->devInfo->defaultLowOutputLatency);
-}
-
-static PyObject *_pyAudio_paDeviceInfo_get_defaultHighInputLatency(
-    _pyAudio_paDeviceInfo *self, void *closure) {
-  if (!self->devInfo) {
-    PyErr_SetString(PyExc_AttributeError, "No Device Info available");
-    return NULL;
-  }
-
-  return PyFloat_FromDouble(self->devInfo->defaultHighInputLatency);
-}
-
-static PyObject *_pyAudio_paDeviceInfo_get_defaultHighOutputLatency(
-    _pyAudio_paDeviceInfo *self, void *closure) {
-  if (!self->devInfo) {
-    PyErr_SetString(PyExc_AttributeError, "No Device Info available");
-    return NULL;
-  }
-
-  return PyFloat_FromDouble(self->devInfo->defaultHighOutputLatency);
-}
-
-static PyObject *_pyAudio_paDeviceInfo_get_defaultSampleRate(
-    _pyAudio_paDeviceInfo *self, void *closure) {
-  if (!self->devInfo) {
-    PyErr_SetString(PyExc_AttributeError, "No Device Info available");
-    return NULL;
-  }
-
-  return PyFloat_FromDouble(self->devInfo->defaultSampleRate);
-}
-
-static int _pyAudio_paDeviceInfo_antiset(_pyAudio_paDeviceInfo *self,
-                                         PyObject *value, void *closure) {
-  /* read-only: do not allow users to change values */
-  PyErr_SetString(PyExc_AttributeError,
-                  "Fields read-only: cannot modify values");
-  return -1;
-}
-
-static PyGetSetDef _pyAudio_paDeviceInfo_getseters[] = {
-    {"name", (getter)_pyAudio_paDeviceInfo_get_name,
-     (setter)_pyAudio_paDeviceInfo_antiset, "device name", NULL},
-
-    {"structVersion", (getter)_pyAudio_paDeviceInfo_get_structVersion,
-     (setter)_pyAudio_paDeviceInfo_antiset, "struct version", NULL},
-
-    {"hostApi", (getter)_pyAudio_paDeviceInfo_get_hostApi,
-     (setter)_pyAudio_paDeviceInfo_antiset, "host api index", NULL},
-
-    {"maxInputChannels", (getter)_pyAudio_paDeviceInfo_get_maxInputChannels,
-     (setter)_pyAudio_paDeviceInfo_antiset, "max input channels", NULL},
-
-    {"maxOutputChannels", (getter)_pyAudio_paDeviceInfo_get_maxOutputChannels,
-     (setter)_pyAudio_paDeviceInfo_antiset, "max output channels", NULL},
-
-    {"defaultLowInputLatency",
-     (getter)_pyAudio_paDeviceInfo_get_defaultLowInputLatency,
-     (setter)_pyAudio_paDeviceInfo_antiset, "default low input latency", NULL},
-
-    {"defaultLowOutputLatency",
-     (getter)_pyAudio_paDeviceInfo_get_defaultLowOutputLatency,
-     (setter)_pyAudio_paDeviceInfo_antiset, "default low output latency", NULL},
-
-    {"defaultHighInputLatency",
-     (getter)_pyAudio_paDeviceInfo_get_defaultHighInputLatency,
-     (setter)_pyAudio_paDeviceInfo_antiset, "default high input latency", NULL},
-
-    {"defaultHighOutputLatency",
-     (getter)_pyAudio_paDeviceInfo_get_defaultHighOutputLatency,
-     (setter)_pyAudio_paDeviceInfo_antiset, "default high output latency",
-     NULL},
-
-    {"defaultSampleRate", (getter)_pyAudio_paDeviceInfo_get_defaultSampleRate,
-     (setter)_pyAudio_paDeviceInfo_antiset, "default sample rate", NULL},
-
-    {NULL}};
-
-static void _pyAudio_paDeviceInfo_dealloc(_pyAudio_paDeviceInfo *self) {
-  self->devInfo = NULL;
-  Py_TYPE(self)->tp_free((PyObject *)self);
-}
-
-static PyTypeObject _pyAudio_paDeviceInfoType = {
-    // clang-format off
-  PyVarObject_HEAD_INIT(NULL, 0)
-    // clang-format on
-    "_portaudio.paDeviceInfo",                 /*tp_name*/
-    sizeof(_pyAudio_paDeviceInfo),             /*tp_basicsize*/
-    0,                                         /*tp_itemsize*/
-    (destructor)_pyAudio_paDeviceInfo_dealloc, /*tp_dealloc*/
-    0,                                         /*tp_print*/
-    0,                                         /*tp_getattr*/
-    0,                                         /*tp_setattr*/
-    0,                                         /*tp_compare*/
-    0,                                         /*tp_repr*/
-    0,                                         /*tp_as_number*/
-    0,                                         /*tp_as_sequence*/
-    0,                                         /*tp_as_mapping*/
-    0,                                         /*tp_hash */
-    0,                                         /*tp_call*/
-    0,                                         /*tp_str*/
-    0,                                         /*tp_getattro*/
-    0,                                         /*tp_setattro*/
-    0,                                         /*tp_as_buffer*/
-    Py_TPFLAGS_DEFAULT,                        /*tp_flags*/
-    "Port Audio Device Info",                  /* tp_doc */
-    0,                                         /* tp_traverse */
-    0,                                         /* tp_clear */
-    0,                                         /* tp_richcompare */
-    0,                                         /* tp_weaklistoffset */
-    0,                                         /* tp_iter */
-    0,                                         /* tp_iternext */
-    0,                                         /* tp_methods */
-    0,                                         /* tp_members */
-    _pyAudio_paDeviceInfo_getseters,           /* tp_getset */
-    0,                                         /* tp_base */
-    0,                                         /* tp_dict */
-    0,                                         /* tp_descr_get */
-    0,                                         /* tp_descr_set */
-    0,                                         /* tp_dictoffset */
-    0,                                         /* tp_init */
-    0,                                         /* tp_alloc */
-    0,                                         /* tp_new */
-};
-
-static _pyAudio_paDeviceInfo *_create_paDeviceInfo_object(void) {
-  _pyAudio_paDeviceInfo *obj;
-
-  /* don't allow subclassing */
-  obj = (_pyAudio_paDeviceInfo *)PyObject_New(_pyAudio_paDeviceInfo,
-                                              &_pyAudio_paDeviceInfoType);
-  return obj;
-}
-
-/*************************************************************
- * PaHostApi Info Python Object
- *************************************************************/
-
-typedef struct {
-  // clang-format off
-  PyObject_HEAD
-      // clang-format on
-      PaHostApiInfo *apiInfo;
-} _pyAudio_paHostApiInfo;
-
-static PyObject *_pyAudio_paHostApiInfo_get_structVersion(
-    _pyAudio_paHostApiInfo *self, void *closure) {
-  if ((!self->apiInfo)) {
-    PyErr_SetString(PyExc_AttributeError, "No HostApi Info available");
-    return NULL;
-  }
-
-  return PyLong_FromLong(self->apiInfo->structVersion);
-}
-
-static PyObject *_pyAudio_paHostApiInfo_get_type(_pyAudio_paHostApiInfo *self,
-                                                 void *closure) {
-  if ((!self->apiInfo)) {
-    PyErr_SetString(PyExc_AttributeError, "No HostApi Info available");
-    return NULL;
-  }
-
-  return PyLong_FromLong((long)self->apiInfo->type);
-}
-
-static PyObject *_pyAudio_paHostApiInfo_get_name(_pyAudio_paHostApiInfo *self,
-                                                 void *closure) {
-  if ((!self->apiInfo) || (self->apiInfo->name == NULL)) {
-    PyErr_SetString(PyExc_AttributeError, "No HostApi Info available");
-    return NULL;
-  }
-
-  return PyUnicode_FromString(self->apiInfo->name);
-}
-
-static PyObject *_pyAudio_paHostApiInfo_get_deviceCount(
-    _pyAudio_paHostApiInfo *self, void *closure) {
-  if ((!self->apiInfo)) {
-    PyErr_SetString(PyExc_AttributeError, "No HostApi Info available");
-    return NULL;
-  }
-
-  return PyLong_FromLong(self->apiInfo->deviceCount);
-}
-
-static PyObject *_pyAudio_paHostApiInfo_get_defaultInputDevice(
-    _pyAudio_paHostApiInfo *self, void *closure) {
-  if ((!self->apiInfo)) {
-    PyErr_SetString(PyExc_AttributeError, "No HostApi Info available");
-    return NULL;
-  }
-
-  return PyLong_FromLong(self->apiInfo->defaultInputDevice);
-}
-
-static PyObject *_pyAudio_paHostApiInfo_get_defaultOutputDevice(
-    _pyAudio_paHostApiInfo *self, void *closure) {
-  if ((!self->apiInfo)) {
-    PyErr_SetString(PyExc_AttributeError, "No HostApi Info available");
-    return NULL;
-  }
-
-  return PyLong_FromLong(self->apiInfo->defaultOutputDevice);
-}
-
-static int _pyAudio_paHostApiInfo_antiset(_pyAudio_paDeviceInfo *self,
-                                          PyObject *value, void *closure) {
-  /* read-only: do not allow users to change values */
-  PyErr_SetString(PyExc_AttributeError,
-                  "Fields read-only: cannot modify values");
-  return -1;
-}
-
-static void _pyAudio_paHostApiInfo_dealloc(_pyAudio_paHostApiInfo *self) {
-  self->apiInfo = NULL;
-  Py_TYPE(self)->tp_free((PyObject *)self);
-}
-
-static PyGetSetDef _pyAudio_paHostApiInfo_getseters[] = {
-    {"name", (getter)_pyAudio_paHostApiInfo_get_name,
-     (setter)_pyAudio_paHostApiInfo_antiset, "host api name", NULL},
-
-    {"structVersion", (getter)_pyAudio_paHostApiInfo_get_structVersion,
-     (setter)_pyAudio_paHostApiInfo_antiset, "struct version", NULL},
-
-    {"type", (getter)_pyAudio_paHostApiInfo_get_type,
-     (setter)_pyAudio_paHostApiInfo_antiset, "host api type", NULL},
-
-    {"deviceCount", (getter)_pyAudio_paHostApiInfo_get_deviceCount,
-     (setter)_pyAudio_paHostApiInfo_antiset, "number of devices", NULL},
-
-    {"defaultInputDevice",
-     (getter)_pyAudio_paHostApiInfo_get_defaultInputDevice,
-     (setter)_pyAudio_paHostApiInfo_antiset, "default input device index",
-     NULL},
-
-    {"defaultOutputDevice",
-     (getter)_pyAudio_paHostApiInfo_get_defaultOutputDevice,
-     (setter)_pyAudio_paDeviceInfo_antiset, "default output device index",
-     NULL},
-
-    {NULL}};
-
-static PyTypeObject _pyAudio_paHostApiInfoType = {
-    // clang-format off
-  PyVarObject_HEAD_INIT(NULL, 0)
-    // clang-format on
-    "_portaudio.paHostApiInfo",                 /*tp_name*/
-    sizeof(_pyAudio_paHostApiInfo),             /*tp_basicsize*/
-    0,                                          /*tp_itemsize*/
-    (destructor)_pyAudio_paHostApiInfo_dealloc, /*tp_dealloc*/
-    0,                                          /*tp_print*/
-    0,                                          /*tp_getattr*/
-    0,                                          /*tp_setattr*/
-    0,                                          /*tp_compare*/
-    0,                                          /*tp_repr*/
-    0,                                          /*tp_as_number*/
-    0,                                          /*tp_as_sequence*/
-    0,                                          /*tp_as_mapping*/
-    0,                                          /*tp_hash */
-    0,                                          /*tp_call*/
-    0,                                          /*tp_str*/
-    0,                                          /*tp_getattro*/
-    0,                                          /*tp_setattro*/
-    0,                                          /*tp_as_buffer*/
-    Py_TPFLAGS_DEFAULT,                         /*tp_flags*/
-    "Port Audio HostApi Info",                  /* tp_doc */
-    0,                                          /* tp_traverse */
-    0,                                          /* tp_clear */
-    0,                                          /* tp_richcompare */
-    0,                                          /* tp_weaklistoffset */
-    0,                                          /* tp_iter */
-    0,                                          /* tp_iternext */
-    0,                                          /* tp_methods */
-    0,                                          /* tp_members */
-    _pyAudio_paHostApiInfo_getseters,           /* tp_getset */
-    0,                                          /* tp_base */
-    0,                                          /* tp_dict */
-    0,                                          /* tp_descr_get */
-    0,                                          /* tp_descr_set */
-    0,                                          /* tp_dictoffset */
-    0,                                          /* tp_init */
-    0,                                          /* tp_alloc */
-    0,                                          /* tp_new */
-};
-
-static _pyAudio_paHostApiInfo *_create_paHostApiInfo_object(void) {
-  _pyAudio_paHostApiInfo *obj;
-
-  /* don't allow subclassing */
-  obj = (_pyAudio_paHostApiInfo *)PyObject_New(_pyAudio_paHostApiInfo,
-                                               &_pyAudio_paHostApiInfoType);
-  return obj;
-}
-
-/*************************************************************
- * Host-Specific Objects
- *************************************************************/
-
-/*************************************************************
- * --> Mac OS X
- *************************************************************/
-
-#ifdef MACOSX
-typedef struct {
-  // clang-format off
-  PyObject_HEAD
-      // clang-format on
-      PaMacCoreStreamInfo *paMacCoreStreamInfo;
-  int flags;
-  SInt32 *channelMap;
-  int channelMapSize;
-} _pyAudio_MacOSX_hostApiSpecificStreamInfo;
-
-typedef _pyAudio_MacOSX_hostApiSpecificStreamInfo _pyAudio_Mac_HASSI;
-
-static void _pyAudio_MacOSX_hostApiSpecificStreamInfo_cleanup(
-    _pyAudio_Mac_HASSI *self) {
-  if (self->paMacCoreStreamInfo != NULL) {
-    free(self->paMacCoreStreamInfo);
-    self->paMacCoreStreamInfo = NULL;
-  }
-
-  if (self->channelMap != NULL) {
-    free(self->channelMap);
-    self->channelMap = NULL;
-  }
-
-  self->flags = paMacCorePlayNice;
-  self->channelMapSize = 0;
-}
-
-static void _pyAudio_MacOSX_hostApiSpecificStreamInfo_dealloc(
-    _pyAudio_Mac_HASSI *self) {
-  _pyAudio_MacOSX_hostApiSpecificStreamInfo_cleanup(self);
-  Py_TYPE(self)->tp_free((PyObject *)self);
-}
-
-static int _pyAudio_MacOSX_hostApiSpecificStreamInfo_init(PyObject *_self,
-                                                          PyObject *args,
-                                                          PyObject *kwargs) {
-  _pyAudio_Mac_HASSI *self = (_pyAudio_Mac_HASSI *)_self;
-  PyObject *channel_map = NULL;
-  int flags = paMacCorePlayNice;
-
-  static char *kwlist[] = {"flags", "channel_map", NULL};
-
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|iO", kwlist, &flags,
-                                   &channel_map)) {
-    return -1;
-  }
-
-  _pyAudio_MacOSX_hostApiSpecificStreamInfo_cleanup(self);
-
-  if (channel_map != NULL) {
-    if (!PyTuple_Check(channel_map)) {
-      PyErr_SetString(PyExc_ValueError, "Channel map must be a tuple");
-      return -1;
-    }
-
-    // generate SInt32 channelMap
-    self->channelMapSize = (int)PyTuple_Size(channel_map);
-    self->channelMap = (SInt32 *)malloc(sizeof(SInt32) * self->channelMapSize);
-
-    if (self->channelMap == NULL) {
-      PyErr_SetString(PyExc_SystemError, "Out of memory");
-      _pyAudio_MacOSX_hostApiSpecificStreamInfo_cleanup(self);
-      return -1;
-    }
-
-    PyObject *element;
-    int i;
-    for (i = 0; i < self->channelMapSize; ++i) {
-      element = PyTuple_GetItem(channel_map, i);
-      if (element == NULL) {
-        PyErr_SetString(PyExc_ValueError,
-                        "Internal error: out of bounds index");
-        _pyAudio_MacOSX_hostApiSpecificStreamInfo_cleanup(self);
-        return -1;
-      }
-
-      if (!PyNumber_Check(element)) {
-        PyErr_SetString(PyExc_ValueError,
-                        "Channel Map must consist of integer elements");
-        _pyAudio_MacOSX_hostApiSpecificStreamInfo_cleanup(self);
-        return -1;
-      }
-
-      PyObject *long_element = PyNumber_Long(element);
-      self->channelMap[i] = (SInt32)PyLong_AsLong(long_element);
-      Py_DECREF(long_element);
-    }
-  }
-
-  self->paMacCoreStreamInfo =
-      (PaMacCoreStreamInfo *)malloc(sizeof(PaMacCoreStreamInfo));
-
-  if (self->paMacCoreStreamInfo == NULL) {
-    PyErr_SetString(PyExc_SystemError, "Out of memeory");
-    _pyAudio_MacOSX_hostApiSpecificStreamInfo_cleanup(self);
-    return -1;
-  }
-
-  PaMacCore_SetupStreamInfo(self->paMacCoreStreamInfo, flags);
-
-  if (self->channelMap) {
-    PaMacCore_SetupChannelMap(self->paMacCoreStreamInfo, self->channelMap,
-                              self->channelMapSize);
-  }
-
-  self->flags = flags;
-  return 0;
-}
-
-static PyObject *_pyAudio_MacOSX_hostApiSpecificStreamInfo_get_flags(
-    _pyAudio_Mac_HASSI *self, void *closure) {
-  return PyLong_FromLong(self->flags);
-}
-
-static PyObject *_pyAudio_MacOSX_hostApiSpecificStreamInfo_get_channel_map(
-    _pyAudio_Mac_HASSI *self, void *closure) {
-  if (self->channelMap == NULL || self->channelMapSize == 0) {
-    Py_INCREF(Py_None);
-    return Py_None;
-  }
-
-  int i;
-  PyObject *channelMapTuple = PyTuple_New(self->channelMapSize);
-  for (i = 0; i < self->channelMapSize; ++i) {
-    PyObject *element = PyLong_FromLong(self->channelMap[i]);
-    if (!element) {
-      PyErr_SetString(PyExc_SystemError, "Invalid channel map");
-      return NULL;
-    }
-
-    if (PyTuple_SetItem(channelMapTuple, i,
-                        PyLong_FromLong(self->channelMap[i]))) {
-      // non-zero on error
-      PyErr_SetString(PyExc_SystemError, "Can't create channel map.");
-      return NULL;
-    }
-  }
-  return channelMapTuple;
-}
-
-static int _pyAudio_MacOSX_hostApiSpecificStreamInfo_antiset(
-    _pyAudio_Mac_HASSI *self, PyObject *value, void *closure) {
-  /* read-only: do not allow users to change values */
-  PyErr_SetString(PyExc_AttributeError,
-                  "Fields read-only: cannot modify values");
-  return -1;
-}
-
-static PyGetSetDef _pyAudio_MacOSX_hostApiSpecificStreamInfo_getseters[] = {
-    {"flags", (getter)_pyAudio_MacOSX_hostApiSpecificStreamInfo_get_flags,
-     (setter)_pyAudio_MacOSX_hostApiSpecificStreamInfo_antiset, "flags", NULL},
-
-    {"channel_map",
-     (getter)_pyAudio_MacOSX_hostApiSpecificStreamInfo_get_channel_map,
-     (setter)_pyAudio_MacOSX_hostApiSpecificStreamInfo_antiset, "channel map",
-     NULL},
-
-    {NULL}};
-
-static PyTypeObject _pyAudio_MacOSX_hostApiSpecificStreamInfoType = {
-    // clang-format off
-  PyVarObject_HEAD_INIT(NULL, 0)
-    // clang-format on
-    "_portaudio.PaMacCoreStreamInfo",                  /*tp_name*/
-    sizeof(_pyAudio_MacOSX_hostApiSpecificStreamInfo), /*tp_basicsize*/
-    0,                                                 /*tp_itemsize*/
-    /*tp_dealloc*/
-    (destructor)_pyAudio_MacOSX_hostApiSpecificStreamInfo_dealloc,
-    0,                                                   /*tp_print*/
-    0,                                                   /*tp_getattr*/
-    0,                                                   /*tp_setattr*/
-    0,                                                   /*tp_compare*/
-    0,                                                   /*tp_repr*/
-    0,                                                   /*tp_as_number*/
-    0,                                                   /*tp_as_sequence*/
-    0,                                                   /*tp_as_mapping*/
-    0,                                                   /*tp_hash */
-    0,                                                   /*tp_call*/
-    0,                                                   /*tp_str*/
-    0,                                                   /*tp_getattro*/
-    0,                                                   /*tp_setattro*/
-    0,                                                   /*tp_as_buffer*/
-    Py_TPFLAGS_DEFAULT,                                  /*tp_flags*/
-    "Mac OS X Specific HostAPI configuration",           /* tp_doc */
-    0,                                                   /* tp_traverse */
-    0,                                                   /* tp_clear */
-    0,                                                   /* tp_richcompare */
-    0,                                                   /* tp_weaklistoffset */
-    0,                                                   /* tp_iter */
-    0,                                                   /* tp_iternext */
-    0,                                                   /* tp_methods */
-    0,                                                   /* tp_members */
-    _pyAudio_MacOSX_hostApiSpecificStreamInfo_getseters, /* tp_getset */
-    0,                                                   /* tp_base */
-    0,                                                   /* tp_dict */
-    0,                                                   /* tp_descr_get */
-    0,                                                   /* tp_descr_set */
-    0,                                                   /* tp_dictoffset */
-    (int (*)(PyObject *, PyObject *, PyObject *))
-        _pyAudio_MacOSX_hostApiSpecificStreamInfo_init, /* tp_init */
-    0,                                                  /* tp_alloc */
-    0,                                                  /* tp_new */
-};
-#endif
 
 /*************************************************************
  * Stream Wrapper Python Object
@@ -1015,231 +429,6 @@ static PyObject *pa_terminate(PyObject *self, PyObject *args) {
 }
 
 /*************************************************************
- * HostAPI
- *************************************************************/
-
-static PyObject *pa_get_host_api_count(PyObject *self, PyObject *args) {
-  PaHostApiIndex count;
-
-  if (!PyArg_ParseTuple(args, "")) {
-    return NULL;
-  }
-
-  count = Pa_GetHostApiCount();
-
-  if (count < 0) {
-#ifdef VERBOSE
-    fprintf(stderr, "An error occured while using the portaudio stream\n");
-    fprintf(stderr, "Error number: %d\n", count);
-    fprintf(stderr, "Error message: %s\n", Pa_GetErrorText(count));
-#endif
-
-    PyErr_SetObject(PyExc_IOError,
-                    Py_BuildValue("(i,s)", count, Pa_GetErrorText(count)));
-    return NULL;
-  }
-
-  return PyLong_FromLong(count);
-}
-
-static PyObject *pa_get_default_host_api(PyObject *self, PyObject *args) {
-  PaHostApiIndex index;
-
-  if (!PyArg_ParseTuple(args, "")) {
-    return NULL;
-  }
-
-  index = Pa_GetDefaultHostApi();
-
-  if (index < 0) {
-#ifdef VERBOSE
-    fprintf(stderr, "An error occured while using the portaudio stream\n");
-    fprintf(stderr, "Error number: %d\n", index);
-    fprintf(stderr, "Error message: %s\n", Pa_GetErrorText(index));
-#endif
-
-    PyErr_SetObject(PyExc_IOError,
-                    Py_BuildValue("(i,s)", index, Pa_GetErrorText(index)));
-    return NULL;
-  }
-
-  return PyLong_FromLong(index);
-}
-
-static PyObject *pa_host_api_type_id_to_host_api_index(PyObject *self,
-                                                       PyObject *args) {
-  PaHostApiTypeId typeid;
-  PaHostApiIndex index;
-
-  if (!PyArg_ParseTuple(args, "i", &typeid)) {
-    return NULL;
-  }
-
-  index = Pa_HostApiTypeIdToHostApiIndex(typeid);
-
-  if (index < 0) {
-#ifdef VERBOSE
-    fprintf(stderr, "An error occured while using the portaudio stream\n");
-    fprintf(stderr, "Error number: %d\n", index);
-    fprintf(stderr, "Error message: %s\n", Pa_GetErrorText(index));
-#endif
-
-    PyErr_SetObject(PyExc_IOError,
-                    Py_BuildValue("(i,s)", index, Pa_GetErrorText(index)));
-    return NULL;
-  }
-
-  return PyLong_FromLong(index);
-}
-
-static PyObject *pa_host_api_device_index_to_device_index(PyObject *self,
-                                                          PyObject *args) {
-  PaHostApiIndex apiIndex;
-  int hostApiDeviceindex;
-  PaDeviceIndex devIndex;
-
-  if (!PyArg_ParseTuple(args, "ii", &apiIndex, &hostApiDeviceindex)) {
-    return NULL;
-  }
-
-  devIndex = Pa_HostApiDeviceIndexToDeviceIndex(apiIndex, hostApiDeviceindex);
-  if (devIndex < 0) {
-#ifdef VERBOSE
-    fprintf(stderr, "An error occured while using the portaudio stream\n");
-    fprintf(stderr, "Error number: %d\n", devIndex);
-    fprintf(stderr, "Error message: %s\n", Pa_GetErrorText(devIndex));
-#endif
-
-    PyErr_SetObject(PyExc_IOError, Py_BuildValue("(i,s)", devIndex,
-                                                 Pa_GetErrorText(devIndex)));
-    return NULL;
-  }
-
-  return PyLong_FromLong(devIndex);
-}
-
-static PyObject *pa_get_host_api_info(PyObject *self, PyObject *args) {
-  PaHostApiIndex index;
-  PaHostApiInfo *_info;
-  _pyAudio_paHostApiInfo *py_info;
-
-  if (!PyArg_ParseTuple(args, "i", &index)) {
-    return NULL;
-  }
-
-  _info = (PaHostApiInfo *)Pa_GetHostApiInfo(index);
-  if (!_info) {
-    PyErr_SetObject(PyExc_IOError, Py_BuildValue("(i,s)", paInvalidHostApi,
-                                                 "Invalid host api info"));
-    return NULL;
-  }
-
-  py_info = _create_paHostApiInfo_object();
-  py_info->apiInfo = _info;
-  return (PyObject *)py_info;
-}
-
-/*************************************************************
- * Device API
- *************************************************************/
-
-static PyObject *pa_get_device_count(PyObject *self, PyObject *args) {
-  PaDeviceIndex count;
-
-  if (!PyArg_ParseTuple(args, "")) {
-    return NULL;
-  }
-
-  count = Pa_GetDeviceCount();
-  if (count < 0) {
-#ifdef VERBOSE
-    fprintf(stderr, "An error occured while using the portaudio stream\n");
-    fprintf(stderr, "Error number: %d\n", count);
-    fprintf(stderr, "Error message: %s\n", Pa_GetErrorText(count));
-#endif
-
-    PyErr_SetObject(PyExc_IOError,
-                    Py_BuildValue("(i,s)", count, Pa_GetErrorText(count)));
-    return NULL;
-  }
-
-  return PyLong_FromLong(count);
-}
-
-static PyObject *pa_get_default_input_device(PyObject *self, PyObject *args) {
-  PaDeviceIndex index;
-
-  if (!PyArg_ParseTuple(args, "")) {
-    return NULL;
-  }
-
-  index = Pa_GetDefaultInputDevice();
-  if (index == paNoDevice) {
-    PyErr_SetString(PyExc_IOError, "No Default Input Device Available");
-    return NULL;
-  } else if (index < 0) {
-#ifdef VERBOSE
-    fprintf(stderr, "An error occured while using the portaudio stream\n");
-    fprintf(stderr, "Error number: %d\n", index);
-    fprintf(stderr, "Error message: %s\n", Pa_GetErrorText(index));
-#endif
-
-    PyErr_SetObject(PyExc_IOError,
-                    Py_BuildValue("(i,s)", index, Pa_GetErrorText(index)));
-    return NULL;
-  }
-
-  return PyLong_FromLong(index);
-}
-
-static PyObject *pa_get_default_output_device(PyObject *self, PyObject *args) {
-  PaDeviceIndex index;
-
-  if (!PyArg_ParseTuple(args, "")) {
-    return NULL;
-  }
-
-  index = Pa_GetDefaultOutputDevice();
-  if (index == paNoDevice) {
-    PyErr_SetString(PyExc_IOError, "No Default Output Device Available");
-    return NULL;
-  } else if (index < 0) {
-#ifdef VERBOSE
-    fprintf(stderr, "An error occured while using the portaudio stream\n");
-    fprintf(stderr, "Error number: %d\n", index);
-    fprintf(stderr, "Error message: %s\n", Pa_GetErrorText(index));
-#endif
-
-    PyErr_SetObject(PyExc_IOError,
-                    Py_BuildValue("(i,s)", index, Pa_GetErrorText(index)));
-    return NULL;
-  }
-
-  return PyLong_FromLong(index);
-}
-
-static PyObject *pa_get_device_info(PyObject *self, PyObject *args) {
-  PaDeviceIndex index;
-  PaDeviceInfo *_info;
-  _pyAudio_paDeviceInfo *py_info;
-
-  if (!PyArg_ParseTuple(args, "i", &index)) {
-    return NULL;
-  }
-
-  _info = (PaDeviceInfo *)Pa_GetDeviceInfo(index);
-  if (!_info) {
-    PyErr_SetObject(PyExc_IOError, Py_BuildValue("(i,s)", paInvalidDevice,
-                                                 "Invalid device info"));
-    return NULL;
-  }
-
-  py_info = _create_paDeviceInfo_object();
-  py_info->devInfo = _info;
-  return (PyObject *)py_info;
-}
-
-/*************************************************************
  * Stream Open / Close / Supported
  *************************************************************/
 
@@ -1431,9 +620,8 @@ static PyObject *pa_open(PyObject *self, PyObject *args, PyObject *kwargs) {
                            NULL};
 
 #ifdef MACOSX
-  _pyAudio_MacOSX_hostApiSpecificStreamInfo *inputHostSpecificStreamInfo = NULL;
-  _pyAudio_MacOSX_hostApiSpecificStreamInfo *outputHostSpecificStreamInfo =
-      NULL;
+  PyAudioMacCoreStreamInfo *inputHostSpecificStreamInfo = NULL;
+  PyAudioMacCoreStreamInfo *outputHostSpecificStreamInfo = NULL;
 #else
   /* mostly ignored...*/
   PyObject *inputHostSpecificStreamInfo = NULL;
@@ -1460,11 +648,11 @@ static PyObject *pa_open(PyObject *self, PyObject *args, PyObject *kwargs) {
                                    &output_device_index_arg,
                                    &frames_per_buffer,
 #ifdef MACOSX
-                                   &_pyAudio_MacOSX_hostApiSpecificStreamInfoType,
+                                   &PyAudioMacCoreStreamInfoType,
 #endif
                                    &inputHostSpecificStreamInfo,
 #ifdef MACOSX
-                                   &_pyAudio_MacOSX_hostApiSpecificStreamInfoType,
+                                   &PyAudioMacCoreStreamInfoType,
 #endif
                                    &outputHostSpecificStreamInfo,
                                    &stream_callback, &as_loopback)) {
@@ -1563,7 +751,7 @@ static PyObject *pa_open(PyObject *self, PyObject *args, PyObject *kwargs) {
 #ifdef MACOSX
     if (outputHostSpecificStreamInfo) {
       outputParameters->hostApiSpecificStreamInfo =
-          outputHostSpecificStreamInfo->paMacCoreStreamInfo;
+          &outputHostSpecificStreamInfo->paMacCoreStreamInfo;
     }
 #endif
   }
@@ -1622,7 +810,7 @@ static PyObject *pa_open(PyObject *self, PyObject *args, PyObject *kwargs) {
 #ifdef MACOSX
     if (inputHostSpecificStreamInfo) {
       inputParameters->hostApiSpecificStreamInfo =
-          inputHostSpecificStreamInfo->paMacCoreStreamInfo;
+          &inputHostSpecificStreamInfo->paMacCoreStreamInfo;
     }
 #endif
   }
@@ -2320,8 +1508,7 @@ init_portaudio(void)
     return ERROR_INIT;
   }
 
-  _pyAudio_paDeviceInfoType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&_pyAudio_paDeviceInfoType) < 0) {
+  if (PyType_Ready(&PyAudioDeviceInfoType) < 0) {
     return ERROR_INIT;
   }
 
@@ -2331,8 +1518,7 @@ init_portaudio(void)
   }
 
 #ifdef MACOSX
-  _pyAudio_MacOSX_hostApiSpecificStreamInfoType.tp_new = PyType_GenericNew;
-  if (PyType_Ready(&_pyAudio_MacOSX_hostApiSpecificStreamInfoType) < 0) {
+  if (PyType_Ready(&PyAudioMacCoreStreamInfoType) < 0) {
     return ERROR_INIT;
   }
 #endif
@@ -2344,14 +1530,14 @@ init_portaudio(void)
 #endif
 
   Py_INCREF(&_pyAudio_StreamType);
-  Py_INCREF(&_pyAudio_paDeviceInfoType);
+  Py_INCREF(&PyAudioDeviceInfoType);
   Py_INCREF(&_pyAudio_paHostApiInfoType);
 
 #ifdef MACOSX
-  Py_INCREF(&_pyAudio_MacOSX_hostApiSpecificStreamInfoType);
+  Py_INCREF(&PyAudioMacCoreStreamInfoType);
   PyModule_AddObject(
       m, "paMacCoreStreamInfo",
-      (PyObject *)&_pyAudio_MacOSX_hostApiSpecificStreamInfoType);
+      (PyObject *)&PyAudioMacCoreStreamInfoType);
 #endif
 
   /* Add PortAudio constants */
