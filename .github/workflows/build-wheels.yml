@@ -33,7 +33,18 @@ jobs:
 
       - name: Build wheel
         working-directory: pyaudio
-        run: py -m pip wheel . --wheel-dir build
+        run: python -m pip wheel . --wheel-dir build
+
+      - name: Install virtual audio device
+        # VB-CABLE is an x86/x64 kernel driver; skip on the ARM64 runner
+        if: matrix.arch != 'ARM64'
+        uses: AlekseyMartynov/action-vbcable-win@main
+
+      - name: Test wheel
+        working-directory: pyaudio/build
+        run: |
+          python -m pip install --no-index --find-links . pyaudio
+          python -c "import pyaudio; print('PyAudio', pyaudio.__version__); p = pyaudio.PyAudio(); print('device count:', p.get_device_count()); p.terminate()"
 
       - name: Upload wheels
         uses: actions/upload-artifact@main
