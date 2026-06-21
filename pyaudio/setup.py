@@ -51,13 +51,15 @@ data_files = []  # for dynamic libraries
 
 def setup_extension():
     pyaudio_module_sources = [
-        'src/pyaudio/_portaudiomodule.c',
+        'src/pyaudio/main.c',
         'src/pyaudio/device_api.c',
         'src/pyaudio/host_api.c',
         'src/pyaudio/init.c',
         'src/pyaudio/mac_core_stream_info.c',
         'src/pyaudio/misc.c',
         'src/pyaudio/stream.c',
+        'src/pyaudio/stream_io.c',
+        'src/pyaudio/stream_lifecycle.c',
     ]
     include_dirs = ['portaudio-v19/include']
     external_libraries = ['portaudio']
