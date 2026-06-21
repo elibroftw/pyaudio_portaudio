@@ -29,6 +29,7 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 import os
 import platform
 import sys
+import sysconfig
 from pathlib import Path
 import logging
 
@@ -55,10 +56,10 @@ extra_link_args = []
 scripts = []
 defines = []
 data_files = []  # for dynamic libraries
-is_x64 = sys.maxsize > 2**32
+is_64bit = sys.maxsize > 2**32
 
 if sys.platform == 'win32':
-    if is_x64:
+    if is_64bit:
         defines.append(('MS_WIN64', '1'))
 elif sys.platform == 'darwin':  # mac
     defines += [('MACOSX', '1')]
@@ -67,22 +68,35 @@ elif sys.platform == 'darwin':  # mac
         extra_link_args += ['-isysroot', mac_sysroot_path]
 
 
+WIN_ARCH_DIRS = {
+    'win32': 'Win32',
+    'win-amd64': 'x64',
+    'win-arm64': 'ARM64',
+}
+
 # check if we are running in a cygwin environment. if not we assume a native windows library in the msvc release path
-# To check if we are running on a 32 or 64 bit environment
+arch_dir = WIN_ARCH_DIRS.get(sysconfig.get_platform())
 if 'ORIGINAL_PATH' in os.environ and 'cygdrive' in os.environ['ORIGINAL_PATH']:
     portaudio_shared = portaudio_path.joinpath('lib/.libs/libportaudio.a')
-elif is_x64:
-    lib_path = 'build/msvc/x64/ReleaseDLL/portaudio.lib'
-    portaudio_shared = portaudio_path.joinpath(lib_path)
 else:
-    lib_path = 'build/msvc/Win32/ReleaseDLL/portaudio.lib'
-    portaudio_shared = portaudio_path.joinpath(lib_path)
+    if arch_dir is None:
+        raise RuntimeError(
+            f"Unsupported Windows target platform {sysconfig.get_platform()!r}; "
+            f"expected one of {sorted(WIN_ARCH_DIRS)}."
+        )
+    portaudio_shared = portaudio_path.joinpath(
+        f'build/msvc/{arch_dir}/ReleaseDLL/portaudio.lib')
+
+if STATIC_LINKING and not portaudio_shared.exists():
+    raise FileNotFoundError(
+        f"PortAudio library not found at {portaudio_shared}. "
+        f"Build PortAudio for this architecture first "
+        f"(msbuild ... /p:Platform={arch_dir} /p:Configuration=ReleaseDLL).")
 extra_link_args.append(str(portaudio_shared))
 
 external_libraries.append('portaudio')
 library_dirs = []
-lib_path = 'build/msvc/x64/ReleaseDLL' if is_x64 else 'build/msvc/Win32/ReleaseDLL'
-lib_path = os.path.join(portaudio_path, lib_path)
+lib_path = os.path.join(portaudio_path, f'build/msvc/{arch_dir}/ReleaseDLL')
 if not STATIC_LINKING:
     data_files.append(('', [os.path.join(lib_path, 'portaudio.dll')]))
 else:
