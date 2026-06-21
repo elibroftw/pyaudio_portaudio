@@ -34,7 +34,7 @@ from pathlib import Path
 from setuptools import setup, Extension
 
 
-__version__ = "0.2.15"
+__version__ = '0.2.15'
 
 # setup.py/setuptools will try to locate and link dynamically against portaudio,
 # except on Windows. On Windows, setup.py will attempt to statically link in

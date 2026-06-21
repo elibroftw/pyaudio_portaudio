@@ -2,9 +2,31 @@ name: Build Windows Wheels
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Verify setup.py version matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          ver=$(grep -oP "__version__\s*=\s*['\"]\K[^'\"]+" pyaudio/setup.py)
+          echo "tag version:      $tag"
+          echo "setup.py version: $ver"
+          if [ "$tag" != "$ver" ]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' does not match setup.py __version__ ('$ver')"
+            exit 1
+          fi
+
   build:
+    needs: check-version
     # https://github.com/actions/runner-images/issues/14225
     runs-on: ${{ matrix.arch == 'ARM64' && 'windows-11-vs2026-arm' || 'windows-latest' }}
     strategy:
@@ -51,3 +73,22 @@ jobs:
         with:
           name: wheels-${{ matrix.arch }}-py${{ matrix.python-version }}
           path: pyaudio/build/*.whl
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@main
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to GitHub release
+        uses: softprops/action-gh-release@master
+        with:
+          files: dist/*.whl
