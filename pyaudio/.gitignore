@@ -1,6 +1,5 @@
 .DS_Store
 src/PyAudio.egg-info
-/build/
 dist/
 docs/
 MANIFEST
