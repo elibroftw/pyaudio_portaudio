@@ -1,5 +1,7 @@
 #include "stream.h"
 
+#include <string.h>
+
 #ifndef PY_SSIZE_T_CLEAN
 #define PY_SSIZE_T_CLEAN
 #endif
@@ -19,13 +21,17 @@ static PyObject *get_structVersion(PyAudioStream *self,
     return NULL;
   }
 
-  if ((!self->streamInfo)) {
-    PyErr_SetObject(PyExc_IOError, Py_BuildValue("(i,s)", paBadStreamPtr,
-                                                 "No StreamInfo available"));
+  const PaStreamInfo *stream_info = Pa_GetStreamInfo(self->context.stream);
+  if (!stream_info) {
+    PyErr_SetObject(PyExc_IOError,
+                    Py_BuildValue("(i,s)", paInternalError,
+                                  "Could not get stream information"));
+
     return NULL;
   }
 
-  return PyLong_FromLong(self->streamInfo->structVersion);
+
+  return PyLong_FromLong(stream_info->structVersion);
 }
 
 static PyObject *get_inputLatency(PyAudioStream *self,
@@ -36,13 +42,16 @@ static PyObject *get_inputLatency(PyAudioStream *self,
     return NULL;
   }
 
-  if ((!self->streamInfo)) {
-    PyErr_SetObject(PyExc_IOError, Py_BuildValue("(i,s)", paBadStreamPtr,
-                                                 "No StreamInfo available"));
-    return NULL;
-  }
+  const PaStreamInfo *stream_info = Pa_GetStreamInfo(self->context.stream);
+    if (!stream_info) {
+        PyErr_SetObject(PyExc_IOError,
+                        Py_BuildValue("(i,s)", paInternalError,
+                                      "Could not get stream information"));
 
-  return PyFloat_FromDouble(self->streamInfo->inputLatency);
+    return NULL;
+}
+
+  return PyFloat_FromDouble(stream_info->inputLatency);
 }
 
 static PyObject *get_outputLatency(PyAudioStream *self,
@@ -53,13 +62,13 @@ static PyObject *get_outputLatency(PyAudioStream *self,
     return NULL;
   }
 
-  if ((!self->streamInfo)) {
-    PyErr_SetObject(PyExc_IOError, Py_BuildValue("(i,s)", paBadStreamPtr,
-                                                 "No StreamInfo available"));
-    return NULL;
-  }
+const PaStreamInfo *stream_info = Pa_GetStreamInfo(self->context.stream);
+    if (!stream_info) {
+        PyErr_SetObject(PyExc_IOError,
+                        Py_BuildValue("(i,s)", paInternalError,
+                                     "Could not get stream information"));
 
-  return PyFloat_FromDouble(self->streamInfo->outputLatency);
+  return PyFloat_FromDouble(stream_info->outputLatency);
 }
 
 static PyObject *get_sampleRate(PyAudioStream *self,
@@ -70,13 +79,15 @@ static PyObject *get_sampleRate(PyAudioStream *self,
     return NULL;
   }
 
-  if ((!self->streamInfo)) {
-    PyErr_SetObject(PyExc_IOError, Py_BuildValue("(i,s)", paBadStreamPtr,
-                                                 "No StreamInfo available"));
+  const PaStreamInfo *stream_info = Pa_GetStreamInfo(self->context.stream);
+  if (!stream_info) {
+      PyErr_SetObject(PyExc_IOError,
+                      Py_BuildValue("(i,s)", paInternalError,
+                                    "Could not get stream information"));
     return NULL;
   }
 
-  return PyFloat_FromDouble(self->streamInfo->sampleRate);
+  return PyFloat_FromDouble(stream_info->sampleRate);
 }
 
 static int antiset(PyAudioStream *self, PyObject *value,
@@ -116,63 +127,60 @@ PyTypeObject PyAudioStreamType = {
     .tp_new = PyType_GenericNew,
 };
 
-static int is_stream_open(PyAudioStream *obj) { return (obj) && (obj->is_open); }
+int is_stream_open(PyAudioStream *stream) {
+  return (stream) && (stream->stream != NULL);
+}
 
-static void cleanup_stream(PyAudioStream *streamObject) {
-  if (streamObject->stream != NULL) {
+PyAudioStream *create_stream(void) {
+  PyAudioStream *stream =
+      (PyAudioStream *)PyObject_New(PyAudioStream, &PyAudioStreamType);
+  if (!stream) {
+    return NULL;
+  }
+  memset(&(stream->context), 0, sizeof(struct StreamContext));
+  return stream;
+}
+
+static void cleanup_stream(PyAudioStream *stream) {
+  // Note that this function may be called multiple times on the same stream.
+  // For example, stream_lifecycle.c may call this when the user closes the
+  // stream, and Python may call it again during deallocation, i.e., when the
+  // stream Python object's reference count reaches 0.
+  if (stream->stream != NULL) {
     // clang-format off
     Py_BEGIN_ALLOW_THREADS
-    Pa_CloseStream(streamObject->stream);
+    Pa_CloseStream(stream->stream);
     Py_END_ALLOW_THREADS
     // clang-format on
-    streamObject->stream = NULL;
+    stream->stream = NULL;
   }
 
-  if (streamObject->streamInfo) streamObject->streamInfo = NULL;
+  if (stream->context.callback != NULL) {
+    // Obsolete in 629e5de6e261e95ecd6804f38801b3fc9a4018c6
+    // I believe calling Py_XDECREF makes trying to "delete" this value redundant
+    // of the callback's hostApiSpecificStreamInfo, then we have a memory leak?
+    // if (stream->context.callback->hostApiSpecificStreamInfo != NULL)   {
+    //   stream->context.callback->hostApiSpecificStreamInfo = NULL;
+    // }
 
-  if (streamObject->inputParameters != NULL) {
-    if (streamObject->inputParameters->hostApiSpecificStreamInfo != NULL)   {
-      streamObject->inputParameters->hostApiSpecificStreamInfo = NULL;
-    }
-
-    free(streamObject->inputParameters);
-    streamObject->inputParameters = NULL;
+    Py_XDECREF(stream->context.callback);
+    stream->inputParameters = NULL;
   }
 
-  if (streamObject->outputParameters != NULL) {
-    free(streamObject->outputParameters);
-    streamObject->outputParameters = NULL;
-  }
-
-  if (streamObject->callbackContext != NULL) {
-    Py_XDECREF(streamObject->callbackContext->callback);
-    free(streamObject->callbackContext);
-    streamObject->callbackContext = NULL;
-  }
-
-  streamObject->is_open = 0;
+  // Just in case, zero out the entire struct.
+  memset(&(stream->context), 0, sizeof(struct StreamContext));
 }
 
-static PyAudioStream *pa_get_stream_time(void) {
-  PyAudioStream *obj;
-
-  /* don't allow subclassing */
-  obj = (PyAudioStream *)PyObject_New(PyAudioStream, &_pyAudio_StreamType);
-  return obj;
-}
-
-static PyObject *pa_get_stream_time(PyObject *self, PyObject *args) {
+PyObject *pa_get_stream_time(PyObject *self, PyObject *args) {
   double time;
-  PyObject *stream_arg;
-  PyAudioStream *streamObject;
 
-  if (!PyArg_ParseTuple(args, "O!", &_pyAudio_StreamType, &stream_arg)) {
+  PyObject *stream_arg;
+  if (!PyArg_ParseTuple(args, "O!", &PyAudioStreamType, &stream_arg)) {
     return NULL;
   }
 
-  streamObject = (PyAudioStream *)stream_arg;
-
-  if (!is_stream_open(streamObject)) {
+  PyAudioStream *stream = (PyAudioStream *)stream_arg;
+  if (!is_stream_open(stream)) {
     PyErr_SetObject(PyExc_IOError,
                     Py_BuildValue("(i,s)", paBadStreamPtr, "Stream closed"));
     return NULL;
@@ -180,12 +188,12 @@ static PyObject *pa_get_stream_time(PyObject *self, PyObject *args) {
 
   // clang-format off
   Py_BEGIN_ALLOW_THREADS
-  time = Pa_GetStreamTime(streamObject->stream);
+  time = Pa_GetStreamTime(stream->context.stream);
   Py_END_ALLOW_THREADS
   // clang-format on
 
   if (time == 0) {
-    cleanup_stream(streamObject);
+    cleanup_stream(stream);
     PyErr_SetObject(PyExc_IOError,
                     Py_BuildValue("(i,s)", paInternalError, "Internal Error"));
     return NULL;
@@ -194,18 +202,18 @@ static PyObject *pa_get_stream_time(PyObject *self, PyObject *args) {
   return PyFloat_FromDouble(time);
 }
 
-static PyObject *pa_get_stream_cpu_load(PyObject *self, PyObject *args) {
-  double cpuload;
+static PyObject *pa_get_stream_time(PyObject *self, PyObject *args) {
+  double time;
   PyObject *stream_arg;
-  PyAudioStream *streamObject;
+  PyAudioStream *stream;
 
   if (!PyArg_ParseTuple(args, "O!", &_pyAudio_StreamType, &stream_arg)) {
     return NULL;
   }
 
-  streamObject = (PyAudioStream *)stream_arg;
+  stream = (PyAudioStream *)stream_arg;
 
-  if (!is_stream_open(streamObject)) {
+  if (!is_stream_open(stream)) {
     PyErr_SetObject(PyExc_IOError,
                     Py_BuildValue("(i,s)", paBadStreamPtr, "Stream closed"));
     return NULL;
@@ -213,7 +221,38 @@ static PyObject *pa_get_stream_cpu_load(PyObject *self, PyObject *args) {
 
   // clang-format off
   Py_BEGIN_ALLOW_THREADS
-  cpuload = Pa_GetStreamCpuLoad(streamObject->stream);
+  time = Pa_GetStreamTime(stream->stream);
+  Py_END_ALLOW_THREADS
+  // clang-format on
+
+  if (time == 0) {
+    cleanup_stream(stream);
+    PyErr_SetObject(PyExc_IOError,
+                    Py_BuildValue("(i,s)", paInternalError, "Internal Error"));
+    return NULL;
+  }
+
+  return PyFloat_FromDouble(time);
+}
+
+PyObject *pa_get_stream_cpu_load(PyObject *self, PyObject *args) {
+  double cpuload;
+
+  PyObject *stream_arg;
+  if (!PyArg_ParseTuple(args, "O!", &PyAudioStreamType, &stream_arg)) {
+    return NULL;
+  }
+
+  PyAudioStream *stream = (PyAudioStream *)stream_arg;
+  if (!is_stream_open(stream)) {
+    PyErr_SetObject(PyExc_IOError,
+                    Py_BuildValue("(i,s)", paBadStreamPtr, "Stream closed"));
+    return NULL;
+  }
+
+  // clang-format off
+  Py_BEGIN_ALLOW_THREADS
+  cpuload = Pa_GetStreamCpuLoad(stream->context.stream);
   Py_END_ALLOW_THREADS
   // clang-format on
 
