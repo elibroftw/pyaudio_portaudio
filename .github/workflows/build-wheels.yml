@@ -81,6 +81,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
       - name: Download all wheels
         uses: actions/download-artifact@main
         with:
@@ -88,7 +91,25 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Compose release notes
+        id: notes
+        run: |
+          # PyAudio bindings version (independent of the package/tag version)
+          pyaudio_ver=$(grep -oP "__version__\s*=\s*['\"]\K[^'\"]+" pyaudio/src/pyaudio.py)
+          # derive min/max Python from the built wheels' cpXY tags (cp310 -> 3.10)
+          minors=$(ls dist/*.whl | grep -oP 'cp3\K\d+' | sort -n -u)
+          min=$(echo "$minors" | head -1)
+          max=$(echo "$minors" | tail -1)
+          {
+            echo "body<<EOF"
+            echo "Packaged PyAudio $pyaudio_ver"
+            echo ""
+            echo "Supports: Python 3.$min ... Python 3.$max, ARM64 x64 (excluding Python 3.$min ARM64)"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Publish to GitHub release
         uses: softprops/action-gh-release@master
         with:
           files: dist/*.whl
+          body: ${{ steps.notes.outputs.body }}
