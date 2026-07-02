@@ -163,7 +163,7 @@ end:
   return return_val;
 }
 
-static PyObject *pa_write_stream(PyObject *self, PyObject *args) {
+PyObject *WriteStream(PyObject *self, PyObject *args) {
   const char *data;
   Py_ssize_t total_size;
   int total_frames;
@@ -229,7 +229,7 @@ error:
   return NULL;
 }
 
-static PyObject *pa_read_stream(PyObject *self, PyObject *args) {
+PyObject *ReadStream(PyObject *self, PyObject *args) {
   int err;
   int total_frames;
   int should_raise_exception = 0;
@@ -307,7 +307,7 @@ error:
   return NULL;
 }
 
-static PyObject *pa_get_stream_write_available(PyObject *self, PyObject *args) {
+PyObject *GetStreamWriteAvailable(PyObject *self, PyObject *args) {
   signed long frames;
   PyObject *stream_arg;
 
@@ -332,7 +332,7 @@ static PyObject *pa_get_stream_write_available(PyObject *self, PyObject *args) {
   return PyLong_FromLong(frames);
 }
 
-static PyObject *pa_get_stream_read_available(PyObject *self, PyObject *args) {
+PyObject *GetStreamReadAvailable(PyObject *self, PyObject *args) {
   signed long frames;
   PyObject *stream_arg;
 

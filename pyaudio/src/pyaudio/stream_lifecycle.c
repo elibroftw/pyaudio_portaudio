@@ -14,7 +14,7 @@
 
 #define DEFAULT_FRAMES_PER_BUFFER paFramesPerBufferUnspecified
 
-static PyObject *pa_open(PyObject *self, PyObject *args, PyObject *kwargs) {
+PyObject *OpenStream(PyObject *self, PyObject *args, PyObject *kwargs) {
   int rate, channels;
   int input_device_index = -1;
   int output_device_index = -1;
@@ -288,7 +288,7 @@ static PyObject *pa_open(PyObject *self, PyObject *args, PyObject *kwargs) {
   return (PyObject *)stream;
 }
 
-static PyObject *pa_close(PyObject *self, PyObject *args) {
+PyObject *CloseStream(PyObject *self, PyObject *args) {
   PyObject *stream_arg;
 
   if (!PyArg_ParseTuple(args, "O!", &_pyAudio_StreamType, &stream_arg)) {
@@ -307,7 +307,7 @@ static PyObject *pa_close(PyObject *self, PyObject *args) {
  * Stream Start / Stop / Info
  *************************************************************/
 
-static PyObject *pa_start_stream(PyObject *self, PyObject *args) {
+PyObject *StartStream(PyObject *self, PyObject *args) {
   int err;
   PyObject *stream_arg;
 
@@ -329,8 +329,7 @@ static PyObject *pa_start_stream(PyObject *self, PyObject *args) {
   Py_END_ALLOW_THREADS
   // clang-format on
 
-  if ((err != paNoError) &&
-      (err != paStreamIsNotStopped)) {
+  if ((err != paNoError) && (err != paStreamIsNotStopped)) {
     cleanup_stream(stream);
 
 #ifdef VERBOSE
@@ -348,7 +347,7 @@ static PyObject *pa_start_stream(PyObject *self, PyObject *args) {
   return Py_None;
 }
 
-static PyObject *pa_stop_stream(PyObject *self, PyObject *args) {
+PyObject *StopStream(PyObject *self, PyObject *args) {
   int err;
   PyObject *stream_arg;
 
@@ -387,7 +386,7 @@ static PyObject *pa_stop_stream(PyObject *self, PyObject *args) {
   return Py_None;
 }
 
-static PyObject *pa_abort_stream(PyObject *self, PyObject *args) {
+PyObject *AbortStream(PyObject *self, PyObject *args) {
   int err;
   PyObject *stream_arg;
 
@@ -426,7 +425,7 @@ static PyObject *pa_abort_stream(PyObject *self, PyObject *args) {
   return Py_None;
 }
 
-static PyObject *pa_is_stream_stopped(PyObject *self, PyObject *args) {
+PyObject *IsStreamStopped(PyObject *self, PyObject *args) {
   int err;
   PyObject *stream_arg;
 
@@ -472,7 +471,7 @@ static PyObject *pa_is_stream_stopped(PyObject *self, PyObject *args) {
 }
 
 
-static PyObject *pa_is_stream_active(PyObject *self, PyObject *args) {
+PyObject *IsStreamActive(PyObject *self, PyObject *args) {
   int is_active;
   PyObject *stream_arg;
 

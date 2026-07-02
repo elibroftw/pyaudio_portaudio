@@ -171,7 +171,7 @@ static void cleanup_stream(PyAudioStream *stream) {
   memset(&(stream->context), 0, sizeof(struct StreamContext));
 }
 
-PyObject *pa_get_stream_time(PyObject *self, PyObject *args) {
+PyObject *GetStreamTime(PyObject *self, PyObject *args) {
   double time;
 
   PyObject *stream_arg;
@@ -202,40 +202,7 @@ PyObject *pa_get_stream_time(PyObject *self, PyObject *args) {
   return PyFloat_FromDouble(time);
 }
 
-static PyObject *pa_get_stream_time(PyObject *self, PyObject *args) {
-  double time;
-  PyObject *stream_arg;
-  PyAudioStream *stream;
-
-  if (!PyArg_ParseTuple(args, "O!", &_pyAudio_StreamType, &stream_arg)) {
-    return NULL;
-  }
-
-  stream = (PyAudioStream *)stream_arg;
-
-  if (!is_stream_open(stream)) {
-    PyErr_SetObject(PyExc_IOError,
-                    Py_BuildValue("(i,s)", paBadStreamPtr, "Stream closed"));
-    return NULL;
-  }
-
-  // clang-format off
-  Py_BEGIN_ALLOW_THREADS
-  time = Pa_GetStreamTime(stream->stream);
-  Py_END_ALLOW_THREADS
-  // clang-format on
-
-  if (time == 0) {
-    cleanup_stream(stream);
-    PyErr_SetObject(PyExc_IOError,
-                    Py_BuildValue("(i,s)", paInternalError, "Internal Error"));
-    return NULL;
-  }
-
-  return PyFloat_FromDouble(time);
-}
-
-PyObject *pa_get_stream_cpu_load(PyObject *self, PyObject *args) {
+PyObject *GetStreamCpuLoad(PyObject *self, PyObject *args) {
   double cpuload;
 
   PyObject *stream_arg;
